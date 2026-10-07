@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocp-bottleneck-analyzer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ocp-bottleneck-analyzer
+  template:
+    metadata:
+      labels:
+        app: ocp-bottleneck-analyzer
+    spec:
+      containers:
+        - name: app
+          image: quay.io/YOUR_ORG/ocp-bottleneck-analyzer:latest
+          ports:
+            - containerPort: 8501
+              name: http
+          env:
+            - name: LLM_MODEL
+              value: gpt-4o-mini
+          envFrom:
+            # Optional: OPENAI_API_KEY / OPENAI_BASE_URL / AZURE_OPENAI_* (see llm-secret.example.yaml)
+            - secretRef:
+                name: ocp-analyzer-llm
+                optional: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: http
+            initialDelaySeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
