@@ -1,0 +1,65 @@
+{
+  "catalog-service": {
+    "health_score": 87,
+    "rule_ids": [
+      "node_pressure",
+      "overprovisioned",
+      "quota_exhaustion"
+    ],
+    "severity_counts": {
+      "critical": 0,
+      "high": 1,
+      "medium": 1,
+      "low": 0,
+      "info": 2
+    }
+  },
+  "checkout-service": {
+    "health_score": 18,
+    "rule_ids": [
+      "cpu_saturation",
+      "cpu_throttling",
+      "crash_looping",
+      "high_latency",
+      "hpa_at_max",
+      "logs_db_pool",
+      "logs_gc",
+      "logs_http_5xx",
+      "logs_out_of_memory",
+      "logs_slow",
+      "logs_timeout",
+      "memory_saturation",
+      "node_pressure",
+      "oom_killed",
+      "pending_pod",
+      "probe_failures",
+      "quota_exhaustion",
+      "replicas_unavailable"
+    ],
+    "severity_counts": {
+      "critical": 1,
+      "high": 15,
+      "medium": 6,
+      "low": 0,
+      "info": 0
+    }
+  },
+  "payment-gateway": {
+    "health_score": 54,
+    "rule_ids": [
+      "crash_looping",
+      "logs_dns",
+      "probe_failures",
+      "quota_exhaustion",
+      "replicas_unavailable",
+      "single_replica"
+    ],
+    "severity_counts": {
+      "critical": 2,
+      "high": 1,
+      "medium": 2,
+      "low": 1,
+      "info": 0
+    }
+  }
+}

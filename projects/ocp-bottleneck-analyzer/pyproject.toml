@@ -18,7 +18,8 @@ dependencies = [
 
 [project.optional-dependencies]
 ui = ["streamlit>=1.48", "plotly>=5.20", "pandas>=2.0"]
-dev = ["pytest>=8", "responses>=0.25", "ruff>=0.5", "streamlit>=1.48", "plotly>=5.20", "pandas>=2.0"]
+dev = ["pytest>=8", "pytest-html>=4.1", "responses>=0.25", "ruff>=0.5", "streamlit>=1.48", "plotly>=5.20", "pandas>=2.0"]
+uat = ["playwright>=1.44", "pytest-playwright>=0.5"]
 
 [project.scripts]
 ocp-analyzer = "ocp_analyzer.cli:app"
@@ -35,6 +36,13 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# UAT needs a browser (`pip install -e ".[dev,uat]" && playwright install chromium`); run it with `-m uat`.
+addopts = "-m 'not uat'"
+markers = [
+  "functional: unit/functional tests of collectors, rules, agent, CLI",
+  "regression: golden demo baselines and tests guarding fixed bugs",
+  "uat: Playwright browser tests of the Streamlit UI (demo mode)",
+]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["typer.Option", "typer.Argument"]

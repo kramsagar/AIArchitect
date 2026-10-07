@@ -6,6 +6,7 @@ on:
     paths: ["projects/ocp-bottleneck-analyzer/**", ".github/workflows/ocp-bottleneck-analyzer.yml"]
   pull_request:
     paths: ["projects/ocp-bottleneck-analyzer/**", ".github/workflows/ocp-bottleneck-analyzer.yml"]
+  workflow_dispatch:
 
 defaults:
   run:
@@ -26,3 +27,36 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest -q
+
+  # Functional + regression + Playwright UAT with JUnit/HTML reports and screenshots.
+  test-reports:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev,uat]"
+      - run: python -m playwright install --with-deps chromium
+      - name: Run all suites
+        run: ./scripts/run_tests.sh
+      - name: Job summary
+        if: always()
+        run: cat test-reports/SUMMARY.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-reports
+          path: projects/ocp-bottleneck-analyzer/test-reports
+      # On main, commit the latest results so they are browsable in the repo.
+      - name: Commit test reports
+        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A test-reports
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "Update ocp-bottleneck-analyzer test reports [skip ci]"
+          git push

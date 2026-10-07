@@ -110,9 +110,13 @@ podman build -t quay.io/YOUR_ORG/ocp-bottleneck-analyzer:latest . && podman push
 oc new-project bottleneck-analyzer
 cp deploy/openshift/llm-secret.example.yaml llm-secret.yaml   # optional, fill in and keep out of git
 oc apply -f llm-secret.yaml
+oc create secret generic ocp-bottleneck-analyzer-proxy --from-literal=session_secret="$(openssl rand -hex 16)"
 oc apply -k deploy/openshift
 oc get route ocp-bottleneck-analyzer
 ```
+
+The Route is protected by an OpenShift `oauth-proxy` sidecar: users sign in with their cluster account and must be
+allowed to `get` the `ocp-bottleneck-analyzer` Service in that namespace. Streamlit only listens on `127.0.0.1`.
 
 The image is based on UBI 9 Python 3.11 and runs as a non-root user (OpenShift `restricted-v2` SCC compatible).
 
@@ -129,11 +133,25 @@ The image is based on UBI 9 Python 3.11 and runs as a non-root user (OpenShift `
 ```bash
 pip install -e ".[dev]"
 ruff check . && ruff format --check .
-pytest -q
+pytest -q                      # functional + regression (no browser needed)
 ```
 
-Tests cover the OAuth flow and REST client (mocked with `responses`), Prometheus discovery, log mining,
-every demo scenario end-to-end, the agent tool loop (scripted fake LLM) and the CLI.
+| Suite | Location | What it covers |
+|---|---|---|
+| `functional` | `tests/functional/` | OAuth flow and REST client (mocked with `responses`), Prometheus discovery, log mining, rules, agent tool loop (scripted fake LLM), CLI |
+| `regression` | `tests/regression/` | Golden demo baselines (`baselines.json`: health score, rule IDs, severity counts per deployment) and tests for previously fixed bugs |
+| `uat` | `tests/uat/` | Playwright drives the Streamlit UI in demo mode: connect, pick deployment, analyze, every tab, downloads, validation |
+
+Run everything with reports (JUnit, HTML, console log, screenshots, `SUMMARY.md`):
+
+```bash
+pip install -e ".[dev,uat]" && python -m playwright install chromium
+./scripts/run_tests.sh         # writes test-reports/
+```
+
+The latest results are committed in [`test-reports/SUMMARY.md`](test-reports/SUMMARY.md). CI runs the same script,
+attaches `test-reports/` as an artifact and, on `main`, commits the refreshed reports. After an intentional rule
+change, refresh the golden baselines with `python scripts/update_baselines.py`.
 
 ## Roadmap
 

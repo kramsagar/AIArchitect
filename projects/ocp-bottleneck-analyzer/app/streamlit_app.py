@@ -109,7 +109,13 @@ labels = {
 choice = st.selectbox("Deployment", list(labels))
 if st.button("Analyze bottlenecks", type="primary"):
     llm = (
-        LLMConfig(api_key=api_key or None, base_url=base_url or None, model=model, provider=provider)
+        LLMConfig(
+            api_key=api_key or None,
+            base_url=base_url or None,
+            model=model,
+            provider=provider,
+            api_version=env_llm.api_version,
+        )
         if use_llm
         else None
     )
@@ -178,6 +184,15 @@ def series_frame(key: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def pod_limit(attr: str) -> float | None:
+    """Per-pod sum of container limits, if every container is limited and all pods agree (series are per pod)."""
+    per_pod: dict[str, list] = {}
+    for c in report.containers:
+        per_pod.setdefault(c.pod, []).append(getattr(c, attr))
+    sums = {round(sum(v), 6) for v in per_pod.values() if all(v)}
+    return sums.pop() if per_pod and len(sums) == 1 and all(all(v) for v in per_pod.values()) else None
+
+
 with tabs[2]:
     if not snap.series:
         st.info(f"No time series (metrics source: {snap.metrics_source}).")
@@ -194,12 +209,10 @@ with tabs[2]:
             continue
         df["value"] *= scale
         fig = px.line(df, x="time", y="value", color="pod", title=title, height=320)
-        limit = next((c.mem_limit for c in report.containers if c.mem_limit), None)
-        if key == "memory_working_set" and limit:
-            fig.add_hline(y=limit * scale, line_dash="dash", line_color="red", annotation_text="limit")
-        cpu_limit = next((c.cpu_limit for c in report.containers if c.cpu_limit), None)
-        if key == "cpu_usage" and cpu_limit:
-            fig.add_hline(y=cpu_limit, line_dash="dash", line_color="red", annotation_text="limit")
+        limit_attr = {"memory_working_set": "mem_limit", "cpu_usage": "cpu_limit"}.get(key)
+        limit = pod_limit(limit_attr) if limit_attr else None
+        if limit:
+            fig.add_hline(y=limit * scale, line_dash="dash", line_color="red", annotation_text="pod limit")
         fig.update_layout(legend={"orientation": "h", "y": -0.25}, margin={"t": 40, "b": 0})
         grid[i % 2].plotly_chart(fig, width="stretch")
     latency = snap.instant.get("http_p95_latency")

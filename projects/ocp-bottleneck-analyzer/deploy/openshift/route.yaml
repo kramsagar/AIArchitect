@@ -10,7 +10,7 @@ spec:
     kind: Service
     name: ocp-bottleneck-analyzer
   port:
-    targetPort: http
+    targetPort: https
   tls:
-    termination: edge
+    termination: reencrypt
     insecureEdgeTerminationPolicy: Redirect

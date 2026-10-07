@@ -7,7 +7,7 @@ from typing import Any
 
 import requests
 
-from .client import OCPClient, OCPError
+from .client import OCPClient, OCPError, is_cluster_url
 
 MONITORING_NS = "openshift-monitoring"
 TENANCY_PROXY = f"/api/v1/namespaces/{MONITORING_NS}/services/https:thanos-querier:tenancy/proxy"
@@ -86,20 +86,29 @@ def discover_prometheus(
     3. tenancy port of thanos-querier through the API service proxy (namespace scoped)
     """
     notes: list[str] = []
-    candidates: list[tuple[str, str | None]] = []
+    candidates: list[tuple[str, str | None, bool]] = []
     if override_url:
-        candidates.append((override_url, None))
+        trusted = is_cluster_url(kube.api_url, override_url)
+        if not trusted:
+            notes.append(
+                f"{override_url} is not an https URL under the cluster domain; querying it without the cluster token."
+            )
+        candidates.append((override_url, None, trusted))
     else:
         try:
             host = kube.get_route(MONITORING_NS, "thanos-querier")["spec"]["host"]
-            candidates.append((f"https://{host}", None))
+            candidates.append((f"https://{host}", None, True))
         except (OCPError, KeyError) as exc:
             notes.append(f"thanos-querier route not readable: {exc}")
-        candidates.append((f"{kube.api_url}{TENANCY_PROXY}", namespace))
+        candidates.append((f"{kube.api_url}{TENANCY_PROXY}", namespace, True))
 
-    for url, tenancy_ns in candidates:
+    for url, tenancy_ns, send_token in candidates:
         client = PrometheusClient(
-            url, token=kube.token, verify_tls=kube.verify_tls, timeout=kube.timeout, namespace=tenancy_ns
+            url,
+            token=kube.token if send_token else None,
+            verify_tls=kube.verify_tls,
+            timeout=kube.timeout,
+            namespace=tenancy_ns,
         )
         try:
             if tenancy_ns:

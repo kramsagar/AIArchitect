@@ -116,3 +116,31 @@ def to_json(data: Any, limit: int | None = None) -> str:
     if limit and len(text) > limit:
         return text[:limit] + f"\n... [truncated {len(text) - limit} chars]"
     return text
+
+
+_SECRET_PATTERNS = [
+    (re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}"), r"\1 [REDACTED]"),
+    (
+        re.compile(
+            r"(?i)\b(password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|authorization)"
+            r"([\"']?\s*[:=]\s*[\"']?)(?!\[REDACTED)[^\s\"',;&]+"
+        ),
+        r"\1\2[REDACTED]",
+    ),
+    (re.compile(r"\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}"), "[REDACTED_JWT]"),
+    (re.compile(r"\bsha256~[A-Za-z0-9_-]{20,}"), "[REDACTED_TOKEN]"),
+    (re.compile(r"\b(?:sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16})\b"), "[REDACTED_KEY]"),
+]
+
+
+def redact(value: Any) -> Any:
+    """Mask credentials/tokens in strings, recursively through dicts and lists."""
+    if isinstance(value, str):
+        for rx, repl in _SECRET_PATTERNS:
+            value = rx.sub(repl, value)
+        return value
+    if isinstance(value, dict):
+        return {k: redact(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [redact(v) for v in value]
+    return value
