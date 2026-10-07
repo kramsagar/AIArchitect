@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ocp-bottleneck-analyzer
+spec:
+  selector:
+    app: ocp-bottleneck-analyzer
+  ports:
+    - name: http
+      port: 8501
+      targetPort: http

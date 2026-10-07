@@ -1,0 +1,23 @@
+# Minimal read-only access for the user (or ServiceAccount) whose credentials are entered in the UI.
+# Namespace-scoped part: bind to the analysed namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: bottleneck-analyzer-reader
+rules:
+  - apiGroups: ["", "apps", "autoscaling", "metrics.k8s.io"]
+    resources: ["pods", "pods/log", "events", "resourcequotas", "deployments", "replicasets",
+                "horizontalpodautoscalers"]
+    verbs: ["get", "list"]
+---
+# Cluster-scoped part (optional): node conditions + full Thanos access. Without it the analyzer
+# falls back to the namespace-scoped Thanos tenancy endpoint and skips node checks.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: bottleneck-analyzer-nodes
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get"]
+# Also bind the built-in "cluster-monitoring-view" ClusterRole for cluster-wide Prometheus queries.
