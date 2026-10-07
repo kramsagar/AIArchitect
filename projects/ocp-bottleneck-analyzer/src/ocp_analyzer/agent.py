@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .models import AgentStep, ContainerStats, Finding, LogInsight, Snapshot
-from .utils import fmt_bytes, fmt_cpu, fmt_pct, to_json
+from .utils import fmt_bytes, fmt_cpu, fmt_pct, redact, to_json
 
 TOOL_OUTPUT_LIMIT = 6000
 
@@ -107,11 +107,61 @@ TOOLS = [
     _tool("get_metrics_summary", "Collected Prometheus instant metrics (cpu, memory, throttling, network, p95)."),
     _tool(
         "run_promql",
-        "Run a read-only PromQL instant query against the cluster's Prometheus/Thanos.",
+        "Run a read-only PromQL instant query against the cluster's Prometheus/Thanos. Every series selector "
+        'must carry the matcher namespace="<analysed namespace>"; other queries are rejected.',
         {"query": {"type": "string"}},
         ["query"],
     ),
 ]
+
+
+_STRING = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'|`[^`]*`')
+_MATCHER = re.compile(r"([A-Za-z_]\w*)\s*(=~|!=|!~|=)\s*\x00(\d+)\x00")
+_GROUPING = re.compile(r"\b(?:by|without|on|ignoring|group_left|group_right)\s*\([^()]*\)", re.I)
+_IDENT = re.compile(r"(?<![\w.\x00])[A-Za-z_:][\w:]*")
+_PROMQL_KEYWORDS = {
+    "by",
+    "without",
+    "on",
+    "ignoring",
+    "group_left",
+    "group_right",
+    "bool",
+    "and",
+    "or",
+    "unless",
+    "offset",
+    "inf",
+    "nan",
+    "atan2",
+}
+
+
+def promql_scope_error(query: str, namespace: str) -> str | None:
+    """Reject PromQL that could read series outside ``namespace`` (None means the query is allowed)."""
+    literals: list[str] = []
+
+    def stash(m: re.Match) -> str:
+        literals.append(m.group(0)[1:-1])
+        return f"\x00{len(literals) - 1}\x00"
+
+    text = _STRING.sub(stash, query)
+    if text.count("{") != text.count("}"):
+        return "unbalanced braces"
+    for block in re.findall(r"\{([^{}]*)\}", text):
+        ns = [(op, literals[int(i)]) for name, op, i in _MATCHER.findall(block) if name == "namespace"]
+        if ns != [("=", namespace)]:
+            return f'every selector must contain exactly namespace="{namespace}"'
+    text = re.sub(r"\{[^{}]*\}", "{}", text)
+    text = re.sub(r"\[[^\]]*\]", "", text)
+    text = _GROUPING.sub("", text)
+    text = re.sub(r"\x00\d+\x00", "", text)
+    for m in _IDENT.finditer(text):
+        word, rest = m.group(0), text[m.end() :].lstrip()
+        if word.lower() in _PROMQL_KEYWORDS or rest.startswith(("(", "{")):
+            continue
+        return f'selector `{word}` has no namespace="{namespace}" matcher'
+    return None
 
 
 class BottleneckAgent:
@@ -248,6 +298,9 @@ class BottleneckAgent:
     def run_promql(self, query: str) -> Any:
         if not self.prom:
             return {"error": "Prometheus is not available in this session"}
+        problem = promql_scope_error(query, self.snapshot.namespace)
+        if problem:
+            return {"error": f"query rejected: {problem}"}
         try:
             return self.prom.query(query)[:50]
         except Exception as exc:  # noqa: BLE001
@@ -263,7 +316,7 @@ class BottleneckAgent:
         except Exception as exc:  # noqa: BLE001 - surface tool errors to the model
             result = {"error": f"{type(exc).__name__}: {exc}"}
         text = to_json(result, TOOL_OUTPUT_LIMIT)
-        step = AgentStep(step=len(self.trace) + 1, tool=name, arguments=args, result_preview=text[:800])
+        step = AgentStep(step=len(self.trace) + 1, tool=name, arguments=redact(args), result_preview=redact(text[:800]))
         self.trace.append(step)
         if self.on_step:
             self.on_step(step)

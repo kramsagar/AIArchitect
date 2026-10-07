@@ -12,13 +12,14 @@ spec:
       labels:
         app: ocp-bottleneck-analyzer
     spec:
+      serviceAccountName: ocp-bottleneck-analyzer
       containers:
         - name: app
           image: quay.io/YOUR_ORG/ocp-bottleneck-analyzer:latest
-          ports:
-            - containerPort: 8501
-              name: http
           env:
+            # Reachable only through the oauth-proxy sidecar.
+            - name: STREAMLIT_SERVER_ADDRESS
+              value: 127.0.0.1
             - name: LLM_MODEL
               value: gpt-4o-mini
           envFrom:
@@ -33,16 +34,82 @@ spec:
             limits:
               memory: 768Mi
           readinessProbe:
-            httpGet:
-              path: /_stcore/health
-              port: http
+            exec:
+              command:
+                - python
+                - -c
+                - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)
+            timeoutSeconds: 5
           livenessProbe:
-            httpGet:
-              path: /_stcore/health
-              port: http
+            exec:
+              command:
+                - python
+                - -c
+                - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)
+            timeoutSeconds: 5
             initialDelaySeconds: 20
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
+        - name: oauth-proxy
+          # Pin to your cluster's OpenShift version.
+          image: registry.redhat.io/openshift4/ose-oauth-proxy:v4.14
+          args:
+            - --provider=openshift
+            - --https-address=:8443
+            - --http-address=
+            - --upstream=http://127.0.0.1:8501
+            - --openshift-service-account=ocp-bottleneck-analyzer
+            # Only users who may `get` this Service (e.g. namespace admins/editors/viewers) can sign in.
+            - '--openshift-sar={"namespace":"$(POD_NAMESPACE)","resource":"services","resourceName":"ocp-bottleneck-analyzer","verb":"get"}'
+            - --tls-cert=/etc/tls/private/tls.crt
+            - --tls-key=/etc/tls/private/tls.key
+            - --cookie-secret-file=/etc/proxy/secrets/session_secret
+            - --pass-access-token=false
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - containerPort: 8443
+              name: https
+          readinessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: https
+              scheme: HTTPS
+          livenessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: proxy-tls
+              mountPath: /etc/tls/private
+              readOnly: true
+            - name: proxy-session
+              mountPath: /etc/proxy/secrets
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: proxy-tls
+          secret:
+            secretName: ocp-bottleneck-analyzer-tls
+        - name: proxy-session
+          secret:
+            # oc create secret generic ocp-bottleneck-analyzer-proxy --from-literal=session_secret="$(openssl rand -hex 16)"
+            secretName: ocp-bottleneck-analyzer-proxy

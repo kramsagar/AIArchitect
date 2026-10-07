@@ -54,6 +54,29 @@ def _safe(warnings: list[str], label: str, fn: Callable[[], Any], default: Any =
         return default
 
 
+def _targets_deployment(hpa: dict, name: str) -> bool:
+    ref = hpa.get("spec", {}).get("scaleTargetRef") or {}
+    group = (ref.get("apiVersion") or "apps/v1").split("/")[0]
+    return ref.get("kind") == "Deployment" and ref.get("name") == name and group in ("apps", "extensions")
+
+
+def _metrics_api_usage(
+    kube: KubeSource, namespace: str, pod_names: list[str], warnings: list[str]
+) -> tuple[list[dict], list[dict]]:
+    usage = _safe(warnings, "metrics.k8s.io", lambda: kube.get_pod_metrics(namespace), [])
+    wanted = set(pod_names)
+    cpu, mem = [], []
+    for item in usage:
+        pod = item["metadata"]["name"]
+        if pod not in wanted:
+            continue
+        for c in item.get("containers", []):
+            labels = {"pod": pod, "container": c["name"]}
+            cpu.append({"labels": labels, "value": parse_cpu(c["usage"].get("cpu")) or 0.0})
+            mem.append({"labels": labels, "value": parse_memory(c["usage"].get("memory")) or 0.0})
+    return cpu, mem
+
+
 def collect(
     kube: KubeSource,
     prom: MetricsSource | None,
@@ -80,7 +103,7 @@ def collect(
         (
             h
             for h in _safe(warnings, "hpa", lambda: kube.list_hpas(namespace), [])
-            if (h.get("spec", {}).get("scaleTargetRef") or {}).get("name") == deployment_name
+            if _targets_deployment(h, deployment_name)
         ),
         None,
     )
@@ -145,22 +168,24 @@ def collect(
                 lambda q=promql: prom.query_range(q, opts.lookback_minutes, opts.step_seconds),
                 [],
             )
-    elif running:
-        say("Prometheus unavailable, falling back to metrics.k8s.io")
-        usage = _safe(warnings, "metrics.k8s.io", lambda: kube.get_pod_metrics(namespace), [])
-        wanted = set(pod_names)
-        cpu, mem = [], []
-        for item in usage:
-            pod = item["metadata"]["name"]
-            if pod not in wanted:
-                continue
-            for c in item.get("containers", []):
-                labels = {"pod": pod, "container": c["name"]}
-                cpu.append({"labels": labels, "value": parse_cpu(c["usage"].get("cpu")) or 0.0})
-                mem.append({"labels": labels, "value": parse_memory(c["usage"].get("memory")) or 0.0})
-        if cpu:
-            metrics_source = "metrics-api"
-            instant = {"cpu_usage": cpu, "memory_working_set": mem}
+    missing = [k for k in ("cpu_usage", "memory_working_set") if not instant.get(k)]
+    if running and missing:
+        say(
+            "Prometheus CPU/memory unavailable, falling back to metrics.k8s.io"
+            if prom
+            else "Prometheus unavailable, falling back to metrics.k8s.io"
+        )
+        cpu, mem = _metrics_api_usage(kube, namespace, pod_names, warnings)
+        fallback = {"cpu_usage": cpu, "memory_working_set": mem}
+        filled = [k for k in missing if fallback[k]]
+        for key in filled:
+            instant[key] = fallback[key]
+        if filled:
+            if prom:
+                metrics_source = "prometheus+metrics-api"
+                warnings.append(f"Prometheus returned no samples for {', '.join(filled)}; used metrics.k8s.io")
+            else:
+                metrics_source = "metrics-api"
 
     return Snapshot(
         namespace=namespace,

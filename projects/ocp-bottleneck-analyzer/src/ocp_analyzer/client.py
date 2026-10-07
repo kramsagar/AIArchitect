@@ -31,6 +31,23 @@ def _session(verify_tls: bool) -> requests.Session:
     return session
 
 
+def cluster_domain(api_url: str) -> str:
+    """``https://api.c1.example.com:6443`` -> ``c1.example.com`` (the domain OAuth/routes live under)."""
+    host = urlparse(api_url).hostname or ""
+    return host[4:] if host.startswith("api.") else host
+
+
+def is_cluster_url(api_url: str, url: str) -> bool:
+    """True if ``url`` is HTTPS and on the API host or a host under the cluster's domain."""
+    parsed, base = urlparse(url), cluster_domain(api_url)
+    host = parsed.hostname or ""
+    return (
+        parsed.scheme == "https"
+        and bool(base)
+        and (host in (base, urlparse(api_url).hostname) or host.endswith("." + base))
+    )
+
+
 def oauth_login(api_url: str, username: str, password: str, verify_tls: bool = True, timeout: float = 30) -> str:
     """Exchange username/password for an OAuth bearer token (same flow as ``oc login -u -p``)."""
     api_url = api_url.rstrip("/")
@@ -44,6 +61,11 @@ def oauth_login(api_url: str, username: str, password: str, verify_tls: bool = T
     authorize = meta.json().get("authorization_endpoint")
     if not authorize:
         raise AuthError("OAuth metadata does not contain an authorization_endpoint")
+    if not is_cluster_url(api_url, authorize):
+        raise AuthError(
+            f"Refusing to send credentials to OAuth endpoint {authorize}: "
+            f"not an https URL under the cluster domain {cluster_domain(api_url)!r}"
+        )
 
     try:
         resp = session.get(

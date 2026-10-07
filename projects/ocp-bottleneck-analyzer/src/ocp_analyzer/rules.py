@@ -354,6 +354,31 @@ def pending_pods(ctx: RuleContext) -> list[Finding]:
         msgs = sched.get(name, [])
         if not msgs and any(c.state_reason for c in ctx.containers if c.pod == name):
             continue
+        node = pod.get("spec", {}).get("nodeName")
+        scheduled = node or any(
+            c.get("type") == "PodScheduled" and c.get("status") == "True"
+            for c in pod.get("status", {}).get("conditions") or []
+        )
+        if scheduled and not msgs:
+            waiting = [
+                f"init container {s.get('name')}: {(s.get('state') or {}).get('waiting', {}).get('reason', 'running')}"
+                for s in pod.get("status", {}).get("initContainerStatuses") or []
+                if "terminated" not in (s.get("state") or {})
+            ]
+            out.append(
+                Finding(
+                    rule_id="pod_initializing",
+                    title="Pod scheduled but stuck initializing",
+                    severity=Severity.MEDIUM,
+                    category="startup",
+                    resource=f"pod/{name}",
+                    description="The pod has a node but has not started its containers yet.",
+                    evidence=[f"phase=Pending on node {node or 'assigned'}", *waiting[:3]],
+                    recommendation="Check init containers, volume mounts/attachments and image pulls "
+                    "(`oc describe pod`, `oc logs -c <init-container>`).",
+                )
+            )
+            continue
         out.append(
             Finding(
                 rule_id="pending_pod",
@@ -457,6 +482,13 @@ def hpa_at_max(ctx: RuleContext) -> list[Finding]:
     if not max_r or cur < max_r:
         return []
     over = [(k, c, t) for k, c, t in _hpa_metrics(hpa) if c is not None and t and c > t]
+    limited = [
+        c
+        for c in status.get("conditions") or []
+        if c.get("type") == "ScalingLimited" and c.get("status") == "True" and c.get("reason") == "TooManyReplicas"
+    ]
+    if not over and not limited:
+        return []
     return [
         Finding(
             rule_id="hpa_at_max",
@@ -466,7 +498,8 @@ def hpa_at_max(ctx: RuleContext) -> list[Finding]:
             resource=f"hpa/{hpa['metadata']['name']}",
             description="The HPA wants more replicas but is capped, so additional load queues up in existing pods.",
             evidence=[f"currentReplicas={cur} maxReplicas={max_r}"]
-            + [f"{k}: {c}% of request (target {t}%)" for k, c, t in over],
+            + [f"{k}: {c}% of request (target {t}%)" for k, c, t in over]
+            + [f"ScalingLimited=True ({c['reason']})" for c in limited],
             recommendation="Raise maxReplicas (check quota/cluster capacity first) or make each pod more efficient.",
         )
     ]
