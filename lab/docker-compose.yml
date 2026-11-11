@@ -1,0 +1,139 @@
+# ShopSphere observability lab. Start: `docker compose up -d --build`   Stop: `docker compose down` (-v wipes data)
+# All credentials below are LOCAL LAB DEFAULTS; override them in lab/.env (see .env.example).
+name: shopsphere-lab
+
+x-app: &app
+  build: ./shopsphere
+  image: shopsphere:local
+  restart: unless-stopped
+  environment: &app-env
+    DATABASE_URL: postgresql://shop:${POSTGRES_PASSWORD:-shop}@postgres:5432/shop
+    REDIS_URL: redis://redis:6379/0
+    PAYMENTS_URL: http://payments:8000
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    OTEL_EXPORTER_OTLP_INSECURE: "true"
+    OTEL_SEMCONV_STABILITY_OPT_IN: http
+    OTEL_METRIC_EXPORT_INTERVAL: "10000"
+    DEPLOY_ENV: lab
+
+services:
+  shopsphere:
+    <<: *app
+    environment: {<<: *app-env, SERVICE_ROLE: shop}
+    ports: ["8080:8000"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      otel-collector: {condition: service_started}
+    deploy: {resources: {limits: {cpus: "1.5", memory: 512M}}}
+
+  payments:
+    <<: *app
+    environment: {<<: *app-env, SERVICE_ROLE: payments}
+    depends_on:
+      redis: {condition: service_healthy}
+      otel-collector: {condition: service_started}
+    deploy: {resources: {limits: {cpus: "0.5", memory: 256M}}}
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shop}
+      POSTGRES_DB: shop
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d shop"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.1
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      SPLUNK_HEC_TOKEN: ${SPLUNK_HEC_TOKEN:-00000000-0000-0000-0000-000000000001}
+    volumes: ["./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro"]
+    ports:
+      - "4317:4317"   # OTLP gRPC (agents in later modules export here too)
+      - "4318:4318"   # OTLP HTTP
+    depends_on: [jaeger]
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.64.0
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      METRICS_STORAGE_TYPE: prometheus         # enables the "Monitor" (SPM) tab from spanmetrics
+      PROMETHEUS_SERVER_URL: http://prometheus:9090
+      PROMETHEUS_QUERY_NAMESPACE: traces_span_metrics
+      PROMETHEUS_QUERY_DURATION_UNIT: ms
+      PROMETHEUS_QUERY_NORMALIZE_CALLS: "true"
+      PROMETHEUS_QUERY_NORMALIZE_DURATION: "true"
+    ports: ["16686:16686"]
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+      - --enable-feature=exemplar-storage
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - promdata:/prometheus
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/shopsphere-overview.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus, jaeger]
+
+  splunk:
+    image: splunk/splunk:9.3.2
+    restart: unless-stopped
+    environment:
+      SPLUNK_START_ARGS: --accept-license
+      SPLUNK_GENERAL_TERMS: --accept-sgt-current-at-splunk-com
+      SPLUNK_PASSWORD: ${SPLUNK_PASSWORD:-ShopSphere#Lab1}
+      SPLUNK_HEC_TOKEN: ${SPLUNK_HEC_TOKEN:-00000000-0000-0000-0000-000000000001}
+      SPLUNK_HEC_SSL: "true"
+    volumes: [splunkvar:/opt/splunk/var, splunketc:/opt/splunk/etc]
+    ports:
+      - "8000:8000"   # Splunk Web
+      - "8088:8088"   # HEC
+
+  loadgen:
+    image: locustio/locust:2.32.4
+    restart: unless-stopped
+    command: >
+      -f /mnt/locustfile.py --host http://shopsphere:8000
+      --users ${LOAD_USERS:-20} --spawn-rate 5 --autostart
+    volumes: ["./loadgen/locustfile.py:/mnt/locustfile.py:ro"]
+    ports: ["8089:8089"]
+    depends_on:
+      shopsphere: {condition: service_healthy}
+
+volumes: {pgdata: {}, promdata: {}, splunkvar: {}, splunketc: {}}

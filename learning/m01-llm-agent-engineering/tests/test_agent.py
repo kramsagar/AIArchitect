@@ -233,7 +233,7 @@ def test_anthropic_client_mapping_end_to_end():
     r = build_agent(AgentConfig(provider="anthropic"), llm=llm).run("Is checkout-api healthy?")
     assert r.status == "completed" and r.response.tools_used == ["get_service_health"]
     assert r.usage.prompt_tokens == 2100
-    assert sent[0]["model"] == "claude-sonnet-4-5"
+    assert sent[0]["model"] == "claude-sonnet-5-5"
     assert sent[0]["output_config"]["format"]["type"] == "json_schema"
     assert sent[0]["tools"][0]["input_schema"]["type"] == "object"
     assert sent[1]["messages"][-1]["content"][0]["type"] == "tool_result"

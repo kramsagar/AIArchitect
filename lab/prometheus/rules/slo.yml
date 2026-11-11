@@ -1,0 +1,79 @@
+# SLOs for ShopSphere (multi-window, multi-burn-rate, Google SRE workbook ch.5).
+# Availability SLO: 99.5% of /api requests are not 5xx  -> error budget 0.5%.
+# Latency SLO:      95% of checkout requests complete < 1s.
+groups:
+  - name: shopsphere-sli
+    interval: 15s
+    rules:
+      - record: shopsphere:http_requests:rate1m
+        expr: sum by (service_name, http_route) (rate(http_server_request_duration_seconds_count[1m]))
+      - record: shopsphere:http_latency_seconds:p95_5m
+        expr: histogram_quantile(0.95, sum by (service_name, http_route, le) (rate(http_server_request_duration_seconds_bucket[5m])))
+      - record: shopsphere:http_latency_seconds:p99_5m
+        expr: histogram_quantile(0.99, sum by (service_name, http_route, le) (rate(http_server_request_duration_seconds_bucket[5m])))
+      - record: shopsphere:http_errors:ratio_rate5m
+        expr: |
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{http_route=~"/api/.*", http_response_status_code=~"5.."}[5m]))
+          / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{http_route=~"/api/.*"}[5m])), 1e-9)
+      - record: shopsphere:http_errors:ratio_rate30m
+        expr: |
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{http_route=~"/api/.*", http_response_status_code=~"5.."}[30m]))
+          / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{http_route=~"/api/.*"}[30m])), 1e-9)
+      - record: shopsphere:http_errors:ratio_rate1h
+        expr: |
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{http_route=~"/api/.*", http_response_status_code=~"5.."}[1h]))
+          / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{http_route=~"/api/.*"}[1h])), 1e-9)
+      - record: shopsphere:http_errors:ratio_rate6h
+        expr: |
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{http_route=~"/api/.*", http_response_status_code=~"5.."}[6h]))
+          / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{http_route=~"/api/.*"}[6h])), 1e-9)
+      - record: shopsphere:checkout_slow:ratio_rate5m
+        expr: |
+          1 - (
+            sum(rate(http_server_request_duration_seconds_bucket{http_route="/api/checkout", le="1.0"}[5m]))
+            / clamp_min(sum(rate(http_server_request_duration_seconds_count{http_route="/api/checkout"}[5m])), 1e-9)
+          )
+
+  - name: shopsphere-slo-alerts
+    rules:
+      - alert: ShopSphereErrorBudgetFastBurn
+        expr: |
+          shopsphere:http_errors:ratio_rate1h > (14.4 * 0.005)
+          and shopsphere:http_errors:ratio_rate5m > (14.4 * 0.005)
+        for: 1m
+        labels: {severity: page, slo: availability}
+        annotations:
+          summary: "{{ $labels.service_name }} burning error budget 14x (2% of 30d budget per hour)"
+          runbook: "docs/runbooks.md#error-budget-burn"
+      - alert: ShopSphereErrorBudgetSlowBurn
+        expr: |
+          shopsphere:http_errors:ratio_rate6h > (6 * 0.005)
+          and shopsphere:http_errors:ratio_rate30m > (6 * 0.005)
+        for: 5m
+        labels: {severity: ticket, slo: availability}
+        annotations:
+          summary: "{{ $labels.service_name }} burning error budget 6x"
+          runbook: "docs/runbooks.md#error-budget-burn"
+      - alert: ShopSphereCheckoutLatencySLO
+        expr: shopsphere:checkout_slow:ratio_rate5m > 0.05
+        for: 2m
+        labels: {severity: page, slo: latency}
+        annotations:
+          summary: "more than 5% of checkouts slower than 1s ({{ $value | humanizePercentage }})"
+          runbook: "docs/runbooks.md#checkout-latency"
+      - alert: ShopSpherePaymentsErrors
+        expr: |
+          sum(rate(shop_payments_total{result!="approved"}[5m])) / clamp_min(sum(rate(shop_payments_total[5m])), 1e-9) > 0.1
+          or sum(rate(shop_orders_total{result=~"payment_.*"}[5m])) > 0.2
+        for: 2m
+        labels: {severity: page, slo: availability}
+        annotations:
+          summary: "payments failing: checkout cannot complete orders"
+          runbook: "docs/runbooks.md#payments-down"
+      - alert: ShopSphereHighP99
+        expr: shopsphere:http_latency_seconds:p99_5m > 2
+        for: 5m
+        labels: {severity: ticket}
+        annotations:
+          summary: "{{ $labels.service_name }} {{ $labels.http_route }} p99 {{ $value | humanizeDuration }}"
+          runbook: "docs/runbooks.md#high-latency"

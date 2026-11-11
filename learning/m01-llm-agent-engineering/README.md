@@ -50,7 +50,7 @@ m01-agent -v ask "Is auth-service healthy?"                       # JSON span lo
 With Claude (put `ANTHROPIC_API_KEY` in your environment; see `.env.example`):
 ```bash
 m01-agent --provider anthropic ask "Can checkout-api handle 2x traffic?" --trace
-m01-agent --provider anthropic --model claude-haiku-4-5 bench --requests 20 --concurrency 4
+m01-agent --provider anthropic --model claude-haiku-5-5 bench --requests 20 --concurrency 4
 pip install -e ".[sdk]" && m01-agent --provider anthropic ask "Is checkout-api healthy?" --sdk   # Agents SDK + LiteLLM
 ```
 OpenAI works the same way with `--provider openai` and `OPENAI_API_KEY`.
