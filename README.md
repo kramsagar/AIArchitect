@@ -20,6 +20,7 @@ observability lab. Start at [`learning/ROADMAP.md`](learning/ROADMAP.md).
 | [M1 LLM & Agent Engineering](learning/m01-llm-agent-engineering/) | ✅ | SRE copilot: single agent, two tools, structured output, retries/timeouts/circuit breaker, bench |
 | [M2 Real tools, RAG, memory & MCP](learning/m02-rag-memory-mcp/) | ✅ | observability-mcp-server (Prometheus, Jaeger, Splunk, runbook RAG) + grounded MCP-client investigator with memory |
 | [M3 Agentic RAG](learning/m03-agentic-rag/) | ✅ | incident-knowledge agent: BM25+vector hybrid, reranking, query rewriting/HyDE, corrective RAG, service-graph RAG, grounded citations, retrieval eval |
+| [M4 Multi-agent](learning/m04-multi-agent/) | ✅ | LangGraph incident-response crew: triage, parallel investigators, RCA, planner, human approval (interrupt), executor (chaos rollback), verifier, postmortem; SQLite/Postgres checkpoints, crash-resume |
 
 ## Repository layout
 
@@ -30,7 +31,8 @@ AIArchitect/
 ├── learning/                      # Agentic AI Architect program (ROADMAP.md + one folder per module)
 │   ├── m01-llm-agent-engineering/
 │   ├── m02-rag-memory-mcp/
-│   └── m03-agentic-rag/
+│   ├── m03-agentic-rag/
+│   └── m04-multi-agent/
 ├── lab/                           # Docker observability lab (ShopSphere + OTel, Prometheus, Jaeger, Splunk, Grafana)
 └── .github/workflows/             # CI (lint + tests per project)
 ```

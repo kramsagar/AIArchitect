@@ -1,0 +1,32 @@
+name: m04-multi-agent
+
+on:
+  push:
+    branches: [main]
+    paths: ["learning/m04-multi-agent/**", "learning/m01-llm-agent-engineering/**", "learning/m02-rag-memory-mcp/**", "learning/m03-agentic-rag/**", "lab/docs/**", ".github/workflows/m04-multi-agent.yml"]
+  pull_request:
+    paths: ["learning/m04-multi-agent/**", "learning/m01-llm-agent-engineering/**", "learning/m02-rag-memory-mcp/**", "learning/m03-agentic-rag/**", "lab/docs/**", ".github/workflows/m04-multi-agent.yml"]
+
+defaults:
+  run:
+    working-directory: learning/m04-multi-agent
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ../m01-llm-agent-engineering -e ../m02-rag-memory-mcp -e ../m03-agentic-rag -e ".[dev,postgres]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -q
+      - run: |
+          for f in steps/step*.py; do echo "== $f"; python "$f" > /dev/null || exit 1; done
+        env:
+          M04_OFFLINE: "1"
