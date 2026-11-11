@@ -46,7 +46,7 @@ sentence-transformers (Anthropic has no embeddings API; Voyage AI optional).
 - **Deliverable:** SRE copilot, a single agent with `get_service_health` and `capacity_calculator`, strict Pydantic output,
   repair loop, budgets, bench (p50/p95/p99, RPS). Providers: mock, Claude, OpenAI. Same agent on the OpenAI Agents SDK.
 
-### M2. Real tools, RAG fundamentals, memory and MCP
+### M2. Real tools, RAG fundamentals, memory and MCP ✅ [`m02-rag-memory-mcp`](m02-rag-memory-mcp/)
 - **Theory:** chunking strategies, embedding models, vector DBs (pgvector, Chroma, FAISS), similarity metrics, metadata
   filters · short-term/long-term/episodic memory, summarisation · tool design for real backends · Model Context Protocol
   (hosts, clients, servers, tools/resources/prompts, transports, auth).
