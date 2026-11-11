@@ -68,7 +68,7 @@ sentence-transformers (Anthropic has no embeddings API; Voyage AI optional).
 - **Deliverable:** incident-response crew: triage → telemetry investigator → RCA → remediation planner → **human approval**
   → executor (lab chaos API rollback) → postmortem writer. Checkpointed in Postgres, resumable after crash.
 
-### M5. Agent-to-agent (A2A) and interoperability
+### M5. Agent-to-agent (A2A) and interoperability ✅ [`m05-a2a`](m05-a2a/)
 - **Theory:** A2A protocol (agent cards, tasks, messages, artifacts, streaming), MCP vs A2A, discovery, trust and auth
   between agents, contracts and versioning, async/long-running tasks, cross-framework agents.
 - **Deliverable:** M4 agents split into independently deployed A2A services (e.g. an SDK-based capacity agent called by a

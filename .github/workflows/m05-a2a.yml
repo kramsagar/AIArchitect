@@ -1,0 +1,32 @@
+name: m05-a2a
+
+on:
+  push:
+    branches: [main]
+    paths: ["learning/m05-a2a/**", "learning/m01-llm-agent-engineering/**", "learning/m02-rag-memory-mcp/**", "learning/m03-agentic-rag/**", "learning/m04-multi-agent/**", "lab/docs/**", ".github/workflows/m05-a2a.yml"]
+  pull_request:
+    paths: ["learning/m05-a2a/**", "learning/m01-llm-agent-engineering/**", "learning/m02-rag-memory-mcp/**", "learning/m03-agentic-rag/**", "learning/m04-multi-agent/**", "lab/docs/**", ".github/workflows/m05-a2a.yml"]
+
+defaults:
+  run:
+    working-directory: learning/m05-a2a
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ../m01-llm-agent-engineering -e ../m02-rag-memory-mcp -e ../m03-agentic-rag -e ../m04-multi-agent -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -q
+      - run: |
+          for f in steps/step*.py; do echo "== $f"; python "$f" > /dev/null || exit 1; done
+        env:
+          M05_OFFLINE: "1"
