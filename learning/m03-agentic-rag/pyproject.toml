@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "m03-rag"
+version = "0.1.0"
+description = "Module 3 - agentic RAG over SRE incident knowledge: hybrid search, reranking, query rewriting, corrective RAG, GraphRAG."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+  "m01-agent",   # pip install -e ../m01-llm-agent-engineering
+  "m02-obs",     # pip install -e ../m02-rag-memory-mcp  (chunking, embeddings, vector store)
+  "pydantic>=2.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+m03 = "m03_rag.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+m03_rag = ["corpus/*.md"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -56,7 +56,7 @@ sentence-transformers (Anthropic has no embeddings API; Voyage AI optional).
   agent upgraded to answer "why is checkout slow?" from live lab telemetry, with cited evidence.
 
 ## Level 2: Practitioner
-### M3. Agentic RAG
+### M3. Agentic RAG ✅ [`m03-agentic-rag`](m03-agentic-rag/)
 - **Theory:** naive RAG failure modes · hybrid search (BM25 + vectors) · reranking · query rewriting/decomposition ·
   HyDE · self-RAG / corrective RAG · retrieval as a tool · citations and grounding · GraphRAG (service dependency graph).
 - **Deliverable:** incident-knowledge agent over runbooks, postmortems and architecture docs that decides when and what to
