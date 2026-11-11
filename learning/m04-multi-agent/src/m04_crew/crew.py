@@ -146,7 +146,9 @@ class Crew:
             "evidence": evidence,
         }
         try:
-            rc = RootCause.model_validate(json_from(self.llm.complete(RCA_SYSTEM, json.dumps(payload), max_tokens=1500)) or {})
+            rc = RootCause.model_validate(
+                json_from(self.llm.complete(RCA_SYSTEM, json.dumps(payload), max_tokens=1500)) or {}
+            )
         except (ValidationError, ValueError) as exc:
             rc = RootCause(root_cause=f"analysis failed: {str(exc)[:80]}", service="?", confidence="low")
         known = {e["id"] for e in evidence}
@@ -169,7 +171,9 @@ class Crew:
             "attempt": state.get("attempts", 0),
         }
         try:
-            plan = Plan.model_validate(json_from(self.llm.complete(PLAN_SYSTEM, json.dumps(payload), max_tokens=1500)) or {})
+            plan = Plan.model_validate(
+                json_from(self.llm.complete(PLAN_SYSTEM, json.dumps(payload), max_tokens=1500)) or {}
+            )
         except (ValidationError, ValueError):
             plan = Plan(action="escalate", rationale="planner output invalid; a human decides")
         if plan.action == "reset_faults" and plan.target not in faults:  # policy beats the model
