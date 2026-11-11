@@ -1,0 +1,28 @@
+name: m01-llm-agent-engineering
+
+on:
+  push:
+    branches: [main]
+    paths: ["learning/m01-llm-agent-engineering/**", ".github/workflows/m01-llm-agent-engineering.yml"]
+  pull_request:
+    paths: ["learning/m01-llm-agent-engineering/**", ".github/workflows/m01-llm-agent-engineering.yml"]
+
+defaults:
+  run:
+    working-directory: learning/m01-llm-agent-engineering
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -q
