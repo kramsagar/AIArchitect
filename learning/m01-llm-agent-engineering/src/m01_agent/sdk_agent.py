@@ -61,7 +61,8 @@ def build_sdk_agent(config: AgentConfig | None = None):
         tools=[get_service_health, capacity_calculator],
         output_type=AssistantResponse,
         model=_sdk_model(config),
-        model_settings=ModelSettings(temperature=config.temperature),
+        # Newer Claude models fix sampling (temperature=1 only), so the setting is only sent to OpenAI.
+        model_settings=ModelSettings(temperature=None if config.provider == "anthropic" else config.temperature),
     )
 
 

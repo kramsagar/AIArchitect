@@ -30,6 +30,8 @@ text -> tokenizer -> token ids -> [transformer: attention over the whole context
 ## Temperature, top_p, determinism
 - Logits are divided by temperature before softmax. `T→0` ≈ greedy (most likely token); higher `T` flattens the distribution (more diverse, more wrong).
 - **Agents, tool selection, extraction, classification: T=0.** Brainstorming hypotheses: 0.7–1.0 with several samples, then verify with tools.
+- Provider reality: the newest Claude models no longer accept `temperature` (fixed sampling), so the M1 Claude
+  adapter never sends it. Determinism must come from **tight instructions, schemas, tool results and evals**.
 - T=0 is *not* bit-for-bit deterministic in hosted APIs (batching, floating point). Design for **repeatable behaviour via validation and evals**, not via sampling settings.
 
 ## Model selection as an architect

@@ -1,0 +1,26 @@
+name: lab
+
+on:
+  push:
+    paths: ["lab/**", ".github/workflows/lab.yml"]
+  pull_request:
+    paths: ["lab/**", ".github/workflows/lab.yml"]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.6.9
+      - run: ruff check --select F,E,I,B --line-length 120 shopsphere loadgen
+      - run: docker compose config -q
+      - name: Validate Prometheus rules
+        run: docker run --rm --entrypoint promtool -v "$PWD/prometheus:/etc/prometheus" prom/prometheus:v2.55.1 check rules /etc/prometheus/rules/slo.yml
+      - name: Build ShopSphere image
+        run: docker build -t shopsphere:ci shopsphere
