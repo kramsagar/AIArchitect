@@ -14,6 +14,9 @@ user ──> Agent.run ──> OBSERVE (system+developer+state+memory+user) ─�
                                          └─ capacity_calculator  (safe AST: error budget, burn rate, Little's law, replicas, availability)
 ```
 
+> **New to agents? Start with the step-by-step track in [`steps/`](steps/README.md).** You build this module yourself in
+> 12 small runnable steps, from a first Claude call to the full agent, then come back to the production version below.
+
 ## Study plan (about 4 hours)
 | # | Topic | Theory | Lab |
 |---|---|---|---|
