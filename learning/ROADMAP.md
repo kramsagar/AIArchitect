@@ -62,7 +62,7 @@ sentence-transformers (Anthropic has no embeddings API; Voyage AI optional).
 - **Deliverable:** incident-knowledge agent over runbooks, postmortems and architecture docs that decides when and what to
   retrieve, grades its own retrieval and re-queries; measured with retrieval metrics (recall@k, MRR).
 
-### M4. Multi-agent workflows with LangGraph
+### M4. Multi-agent workflows with LangGraph ✅ [`m04-multi-agent`](m04-multi-agent/)
 - **Theory:** workflow vs agent vs multi-agent · supervisor, hierarchical, swarm/handoff patterns · state graphs,
   reducers, checkpoints · human-in-the-loop interrupts · durable execution and replay · when *not* to go multi-agent.
 - **Deliverable:** incident-response crew: triage → telemetry investigator → RCA → remediation planner → **human approval**

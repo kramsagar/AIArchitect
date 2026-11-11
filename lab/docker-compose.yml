@@ -41,6 +41,7 @@ services:
       POSTGRES_USER: shop
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shop}
       POSTGRES_DB: shop
+    ports: ["127.0.0.1:55432:5432"]  # M4 LangGraph checkpoints: postgresql://shop:shop@localhost:55432/shop
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U shop -d shop"]
