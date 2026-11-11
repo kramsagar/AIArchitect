@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ShopSphere</title>
+<style>
+ body{font-family:system-ui,sans-serif;margin:0;background:#f6f7f9;color:#1d2330}
+ header{background:#1d2330;color:#fff;padding:12px 20px;display:flex;gap:16px;align-items:center}
+ header h1{font-size:18px;margin:0;flex:1} main{display:grid;grid-template-columns:2fr 1fr;gap:16px;padding:16px}
+ section{background:#fff;border-radius:8px;padding:12px 16px;box-shadow:0 1px 2px #0001}
+ .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+ .card{border:1px solid #e3e6ea;border-radius:6px;padding:8px;font-size:13px}
+ button{cursor:pointer;border:0;border-radius:4px;padding:6px 10px;background:#2f6feb;color:#fff}
+ button.secondary{background:#6b7280} input,select{padding:6px;border:1px solid #ccd;border-radius:4px}
+ #log{font:12px monospace;white-space:pre-wrap;max-height:180px;overflow:auto;background:#111;color:#9f9;padding:8px;border-radius:4px}
+ .links a{color:#9cf;margin-left:10px;font-size:13px}
+</style>
+</head>
+<body>
+<header><h1>ShopSphere</h1><span id="who">not signed in</span>
+ <span class="links"><a href="/docs">API docs</a><a href="http://localhost:3000" target="_blank">Grafana</a><a href="http://localhost:16686" target="_blank">Jaeger</a><a href="http://localhost:9090" target="_blank">Prometheus</a><a href="http://localhost:8000" target="_blank">Splunk</a></span></header>
+<main>
+ <div>
+  <section><input id="user" value="alice" size="10"> <input id="pw" type="password" value="shopsphere" size="10">
+   <button onclick="login()">Sign in</button>
+   <input id="q" placeholder="search e.g. laptop" size="18"> <button onclick="search()">Search</button>
+   <select id="cat" onchange="load()"><option value="">all categories</option></select></section>
+  <section><div class="grid" id="products"></div></section>
+ </div>
+ <div>
+  <section><h3>Cart</h3><div id="cart">empty</div><p><button onclick="checkout()">Checkout</button> <button class="secondary" onclick="clearCart()">Clear</button></p></section>
+  <section><h3>Orders</h3><div id="orders"></div></section>
+  <section><h3>Chaos</h3><select id="scenario"></select> <button onclick="scenario()">Apply</button><div id="chaos" style="font-size:12px"></div></section>
+  <section><div id="log"></div></section>
+ </div>
+</main>
+<script>
+let token = localStorage.getItem("token") || "";
+const money = c => "$" + (c / 100).toFixed(2);
+const out = m => { const l = document.getElementById("log"); l.textContent = new Date().toLocaleTimeString() + " " + m + "\n" + l.textContent; };
+async function api(path, opts = {}) {
+  const t0 = performance.now();
+  const r = await fetch(path, {...opts, headers: {"Content-Type": "application/json", ...(token ? {Authorization: "Bearer " + token} : {})}});
+  const body = await r.json().catch(() => ({}));
+  out(`${opts.method || "GET"} ${path} -> ${r.status} (${Math.round(performance.now() - t0)} ms)`);
+  if (!r.ok) throw new Error(body.detail || r.status);
+  return body;
+}
+function render(items) {
+  document.getElementById("products").innerHTML = items.map(p => `<div class="card"><b>${p.name}</b><br>${p.category} · ${money(p.price_cents)}<br><button onclick="add(${p.id})">Add</button></div>`).join("");
+}
+async function load() { render(await api(`/api/catalog/products?limit=24${cat.value ? "&category=" + cat.value : ""}`)); }
+async function search() { render((await api("/api/search?q=" + encodeURIComponent(q.value))).results); }
+async function login() { const r = await api("/api/auth/login", {method: "POST", body: JSON.stringify({username: user.value, password: pw.value})}); token = r.token; localStorage.setItem("token", token); refresh(); }
+async function add(id) { await api("/api/cart/items", {method: "POST", body: JSON.stringify({product_id: id, qty: 1})}).catch(e => out(e)); refresh(); }
+async function clearCart() { await api("/api/cart", {method: "DELETE"}); refresh(); }
+async function checkout() { try { const r = await api("/api/checkout", {method: "POST"}); out("order " + r.order_id + " " + money(r.total_cents)); } catch (e) { out("checkout failed: " + e.message); } refresh(); }
+async function scenario() { const r = await api("/api/chaos/scenarios/" + document.getElementById("scenario").value, {method: "POST"}); showChaos(r); }
+function showChaos(r) { document.getElementById("chaos").textContent = JSON.stringify(r.services); }
+async function refresh() {
+  if (!token) return;
+  try {
+    const me = await api("/api/auth/me"); who.textContent = me.username;
+    const c = await api("/api/cart"); document.getElementById("cart").textContent = c.items.length ? c.items.map(i => `#${i.product_id} x${i.qty}`).join(", ") : "empty";
+    const o = await api("/api/orders"); document.getElementById("orders").innerHTML = o.slice(0, 5).map(x => `#${x.id} ${money(x.total_cents)} ${x.status}`).join("<br>");
+  } catch (e) { token = ""; localStorage.removeItem("token"); who.textContent = "not signed in"; }
+}
+(async () => {
+  (await api("/api/catalog/categories")).forEach(c => cat.add(new Option(`${c.category} (${c.n})`, c.category)));
+  const ch = await api("/api/chaos"); ch.scenarios.forEach(s => document.getElementById("scenario").add(new Option(s, s))); showChaos(ch);
+  load(); refresh();
+})();
+</script>
+</body>
+</html>

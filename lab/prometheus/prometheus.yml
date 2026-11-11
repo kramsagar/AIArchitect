@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+  external_labels: {lab: shopsphere}
+
+rule_files: [/etc/prometheus/rules/*.yml]
+
+scrape_configs:
+  - job_name: otel-collector-app-metrics   # app + spanmetrics, exported by the collector
+    honor_labels: true
+    static_configs: [{targets: ["otel-collector:8889"]}]
+  - job_name: otel-collector-internal
+    static_configs: [{targets: ["otel-collector:8888"]}]
+  - job_name: prometheus
+    static_configs: [{targets: ["localhost:9090"]}]
