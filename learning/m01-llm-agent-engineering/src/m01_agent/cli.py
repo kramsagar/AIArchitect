@@ -9,7 +9,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from .config import AgentConfig
+from .config import AgentConfig, load_dotenv
 from .factory import build_agent
 from .schemas import AgentResult
 from .telemetry import METRICS, percentile
@@ -161,5 +161,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.verbose:
         logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(message)s")
+    load_dotenv()  # ./.env, never overrides variables already set in the shell
     config = AgentConfig.from_env(provider=args.provider, model=args.model)
     return args.fn(args, config)

@@ -47,7 +47,7 @@ m01-agent bench --requests 500 --concurrency 32 --tool-latency-ms 20 --failure-r
 m01-agent -v ask "Is auth-service healthy?"                       # JSON span logs on stderr
 ```
 
-With Claude (put `ANTHROPIC_API_KEY` in your environment; see `.env.example`):
+With Claude (copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY`, or export it in your shell; `m01-agent` loads `./.env` and never overrides variables already set):
 ```bash
 m01-agent --provider anthropic ask "Can checkout-api handle 2x traffic?" --trace
 m01-agent --provider anthropic --model claude-haiku-5-5 bench --requests 20 --concurrency 4

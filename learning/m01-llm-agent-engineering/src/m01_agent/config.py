@@ -3,9 +3,39 @@
 from __future__ import annotations
 
 import os
+import re
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
+
+_INLINE_COMMENT = re.compile(r"\s+#.*$")
+
+
+def load_dotenv(path: str | Path = ".env") -> dict[str, str]:
+    """Load KEY=VALUE lines from a .env file into os.environ without overriding variables already set.
+
+    Supports comments, inline `  # comments`, optional `export ` and quoted values. Returns what was loaded.
+    """
+    file = Path(path)
+    if not file.is_file():
+        return {}
+    loaded: dict[str, str] = {}
+    for raw in file.read_text(encoding="utf-8-sig").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.removeprefix("export ").split("=", 1)
+        key, value = key.strip(), value.strip()
+        if value[:1] in {'"', "'"} and value[-1:] == value[:1] and len(value) > 1:
+            value = value[1:-1]
+        else:
+            value = _INLINE_COMMENT.sub("", value).strip()
+        if key and value and key not in os.environ:
+            os.environ[key] = value
+            loaded[key] = value
+    return loaded
+
 
 DEFAULT_MODELS = {"anthropic": "claude-sonnet-5-5", "openai": "gpt-4o-mini", "mock": "mock-sre-v1"}
 
