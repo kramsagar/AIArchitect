@@ -4,7 +4,6 @@ name: shopsphere-lab
 
 x-app: &app
   build: ./shopsphere
-  image: shopsphere:local
   restart: unless-stopped
   environment: &app-env
     DATABASE_URL: postgresql://shop:${POSTGRES_PASSWORD:-shop}@postgres:5432/shop
