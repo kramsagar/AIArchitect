@@ -81,10 +81,10 @@ You can also use the **Chaos** panel in the web UI. Scale the load with `LOAD_US
 2. Apply `slow-db`. Which golden signal moves first? Why does checkout p99 grow more than catalog p99?
 3. Run `LOAD_USERS=200` and find the saturation point, where p95 bends. Use Little's Law to explain it with the M1 `capacity_calculator`.
 4. Write a Splunk query (SPL) that returns error logs with their trace ids:
-   `index=main sourcetype=shopsphere:otel severity_text=ERROR | table _time service.name body trace_id`
+   `index=main sourcetype=shopsphere:otel otel.log.severity.text=ERROR | table _time service.name _raw trace_id`
 
 The runbooks the agents will retrieve in M2/M3 are in [docs/runbooks.md](docs/runbooks.md).
 
 ## Ports used
 
-8080 · 3000 · 9090 · 16686 · 8000 · 8088 · 8089 · 4317 · 4318. Change the left-hand side of `ports:` in `docker-compose.yml` if any of these clash.
+8080 · 3000 · 9090 · 16686 · 8000 · 8088 · 8089 · 8090 · 4317 · 4318. Change the left-hand side of `ports:` in `docker-compose.yml` if any of these clash.

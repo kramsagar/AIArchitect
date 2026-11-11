@@ -123,6 +123,7 @@ services:
     ports:
       - "8000:8000"   # Splunk Web
       - "8088:8088"   # HEC
+      - "8090:8089"   # REST/management API (M2 log-search tool); host 8089 is Locust
 
   loadgen:
     image: locustio/locust:2.32.4

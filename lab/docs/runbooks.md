@@ -6,7 +6,7 @@ These are the RAG corpus seed for M2/M3. Every alert annotation links to a secti
 **Signal:** `ShopSphereErrorBudgetFastBurn` / `SlowBurn`. The 5xx ratio is above 14.4x or 6x the 0.5% budget.
 1. Grafana → *Error ratio by service* and *Traffic by route*. Is the burn on one route or all of them?
 2. Jaeger → service `shopsphere-shop`, tag `error=true`. Find the first failing span (DB, Redis or payments).
-3. Splunk: `index=main sourcetype=shopsphere:otel severity_text=ERROR | stats count by service.name, body`.
+3. Splunk: `index=main sourcetype=shopsphere:otel otel.log.severity.text=ERROR | stats count by service.name, _raw`.
 4. Check `GET /api/chaos` and recent deploys. If chaos is active in the lab, it is the "change" that caused this.
 5. Mitigate first: roll back, shed load, or disable the feature. Find the root cause afterwards.
 
