@@ -1,0 +1,28 @@
+name: m03-agentic-rag
+
+on:
+  push:
+    branches: [main]
+    paths: ["learning/m03-agentic-rag/**", "learning/m01-llm-agent-engineering/**", "learning/m02-rag-memory-mcp/**", "lab/docs/**", ".github/workflows/m03-agentic-rag.yml"]
+  pull_request:
+    paths: ["learning/m03-agentic-rag/**", "learning/m01-llm-agent-engineering/**", "learning/m02-rag-memory-mcp/**", "lab/docs/**", ".github/workflows/m03-agentic-rag.yml"]
+
+defaults:
+  run:
+    working-directory: learning/m03-agentic-rag
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ../m01-llm-agent-engineering -e ../m02-rag-memory-mcp -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -q
