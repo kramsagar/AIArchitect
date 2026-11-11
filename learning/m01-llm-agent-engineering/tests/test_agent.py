@@ -164,3 +164,76 @@ def test_openai_client_mapping():
     assert d.tool_calls[0].name == "get_service_health" and d.prompt_tokens == 10
     assert captured["response_format"]["json_schema"]["strict"] is True
     assert captured["temperature"] == 0.0
+
+
+def test_anthropic_message_translation():
+    from m01_agent.llm.anthropic_llm import to_anthropic
+
+    system, msgs = to_anthropic(
+        [
+            {"role": "system", "content": "S"},
+            {"role": "developer", "content": "D"},
+            {"role": "user", "content": "q"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "a", "type": "function", "function": {"name": "t1", "arguments": '{"x": 1}'}},
+                    {"id": "b", "type": "function", "function": {"name": "t2", "arguments": "{}"}},
+                ],
+            },
+            {"role": "tool", "tool_call_id": "a", "content": "r1"},
+            {"role": "tool", "tool_call_id": "b", "content": "r2"},
+        ]
+    )
+    assert system == "S\n\nD"
+    assert [m["role"] for m in msgs] == ["user", "assistant", "user"]
+    assert msgs[1]["content"][0] == {"type": "tool_use", "id": "a", "name": "t1", "input": {"x": 1}}
+    assert [b["tool_use_id"] for b in msgs[2]["content"]] == ["a", "b"]
+
+
+def test_anthropic_client_mapping_end_to_end():
+    from types import SimpleNamespace as NS
+
+    from m01_agent.llm.anthropic_llm import AnthropicLLM
+
+    final = AssistantResponse(
+        answer="checkout-api is breaching its p99 SLO",
+        intent="service_health",
+        severity="critical",
+        recommendations=["roll back"],
+        tools_used=[],
+        confidence="high",
+        follow_up=None,
+    ).model_dump_json()
+    replies = iter(
+        [
+            NS(
+                content=[
+                    NS(
+                        type="tool_use",
+                        id="tu1",
+                        name="get_service_health",
+                        input={"service": "checkout-api", "window_minutes": 15},
+                    )
+                ],
+                usage=NS(input_tokens=900, output_tokens=40),
+            ),
+            NS(content=[NS(type="text", text=final)], usage=NS(input_tokens=1200, output_tokens=80)),
+        ]
+    )
+    sent = []
+
+    class FakeMessages:
+        def create(self, **kw):
+            sent.append(kw)
+            return next(replies)
+
+    llm = AnthropicLLM(AgentConfig(provider="anthropic"), client=NS(messages=FakeMessages()))
+    r = build_agent(AgentConfig(provider="anthropic"), llm=llm).run("Is checkout-api healthy?")
+    assert r.status == "completed" and r.response.tools_used == ["get_service_health"]
+    assert r.usage.prompt_tokens == 2100
+    assert sent[0]["model"] == "claude-sonnet-4-5"
+    assert sent[0]["output_config"]["format"]["type"] == "json_schema"
+    assert sent[0]["tools"][0]["input_schema"]["type"] == "object"
+    assert sent[1]["messages"][-1]["content"][0]["type"] == "tool_result"

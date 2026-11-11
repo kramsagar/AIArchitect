@@ -18,6 +18,8 @@ agents work against a **real instrumented system**: the [ShopSphere observabilit
 | Reading | primary sources only |
 
 Rules for every module: demo/mock mode, no secrets in Git, `ruff` + `pytest` in CI, telemetry for the agent itself.
+Default LLM: **Claude** (`ANTHROPIC_API_KEY`); OpenAI supported as an alternative. Embeddings: local
+sentence-transformers (Anthropic has no embeddings API; Voyage AI optional).
 
 ## The lab everything runs against
 ```
@@ -42,7 +44,7 @@ Rules for every module: demo/mock mode, no secrets in Git, `ruff` + `pytest` in 
 - **Theory:** tokens, context window, embeddings, temperature · instruction hierarchy · prompt vs context engineering ·
   structured outputs · function calling · agent loop · state, memory, retries, timeouts, circuit breakers.
 - **Deliverable:** SRE copilot, a single agent with `get_service_health` and `capacity_calculator`, strict Pydantic output,
-  repair loop, budgets, bench (p50/p95/p99, RPS). Same agent on the OpenAI Agents SDK.
+  repair loop, budgets, bench (p50/p95/p99, RPS). Providers: mock, Claude, OpenAI. Same agent on the OpenAI Agents SDK.
 
 ### M2. Real tools, RAG fundamentals, memory and MCP
 - **Theory:** chunking strategies, embedding models, vector DBs (pgvector, Chroma, FAISS), similarity metrics, metadata
@@ -130,8 +132,8 @@ Rules for every module: demo/mock mode, no secrets in Git, `ruff` + `pytest` in 
 Each module ≈ 25% theory, 50% labs/deliverable, 25% exercises and review.
 
 ## Primary reading
+- Anthropic: [Tool use](https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview), [Structured outputs](https://docs.claude.com/en/docs/build-with-claude/structured-outputs), [Prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching), [Building effective agents](https://www.anthropic.com/research/building-effective-agents)
 - OpenAI: [Agents SDK](https://openai.github.io/openai-agents-python/), [Function calling](https://platform.openai.com/docs/guides/function-calling), [Structured outputs](https://platform.openai.com/docs/guides/structured-outputs)
-- Anthropic: [Building effective agents](https://www.anthropic.com/research/building-effective-agents)
 - [Model Context Protocol](https://modelcontextprotocol.io) · [A2A protocol](https://a2a-protocol.org)
 - [LangGraph docs](https://langchain-ai.github.io/langgraph/)
 - [Ragas](https://docs.ragas.io) · [Langfuse](https://langfuse.com/docs)

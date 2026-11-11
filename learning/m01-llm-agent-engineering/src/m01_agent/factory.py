@@ -54,6 +54,10 @@ def build_registry(config: AgentConfig, metrics_backend: Callable | None = None,
 
 
 def build_llm(config: AgentConfig) -> LLMClient:
+    if config.provider == "anthropic":
+        from .llm.anthropic_llm import AnthropicLLM
+
+        return AnthropicLLM(config)
     if config.provider == "openai":
         from .llm.openai_llm import OpenAIChatLLM
 

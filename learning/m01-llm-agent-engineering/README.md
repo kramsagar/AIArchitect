@@ -2,7 +2,7 @@
 
 Level 1 (Foundations) of the [Agentic AI Architect program](../ROADMAP.md).
 Deliverable: a **single-agent SRE copilot with two tools**, strict structured output and production-style resilience.
-It runs fully offline in mock mode, or against OpenAI.
+It runs fully offline in mock mode, or against **Claude** (default) or OpenAI.
 
 ```
 user ──> Agent.run ──> OBSERVE (system+developer+state+memory+user) ──> DECIDE (LLM)
@@ -47,11 +47,23 @@ m01-agent bench --requests 500 --concurrency 32 --tool-latency-ms 20 --failure-r
 m01-agent -v ask "Is auth-service healthy?"                       # JSON span logs on stderr
 ```
 
-With OpenAI (put `OPENAI_API_KEY` in your environment or `.env`; see `.env.example`):
+With Claude (put `ANTHROPIC_API_KEY` in your environment; see `.env.example`):
 ```bash
-m01-agent --provider openai --model gpt-4o-mini ask "Can checkout-api handle 2x traffic?" --trace
-pip install -e ".[sdk]" && m01-agent --provider openai ask "Is checkout-api healthy?" --sdk
+m01-agent --provider anthropic ask "Can checkout-api handle 2x traffic?" --trace
+m01-agent --provider anthropic --model claude-haiku-4-5 bench --requests 20 --concurrency 4
+pip install -e ".[sdk]" && m01-agent --provider anthropic ask "Is checkout-api healthy?" --sdk   # Agents SDK + LiteLLM
 ```
+OpenAI works the same way with `--provider openai` and `OPENAI_API_KEY`.
+
+### Claude vs OpenAI: what the adapter has to translate
+| Concept | OpenAI Chat Completions | Anthropic Messages |
+|---|---|---|
+| Instructions | `system` / `developer` messages | top-level `system` parameter |
+| Tool schema | `tools[].function.parameters` | `tools[].input_schema` |
+| Tool call | `message.tool_calls[]` (JSON string args) | `tool_use` content block (object input) |
+| Tool result | `role="tool"` message per call | `tool_result` blocks inside one `user` message |
+| Structured output | `response_format.json_schema` | `output_config.format` json_schema |
+Your agent loop stays provider-neutral; only `llm/*.py` changes. That is the seam that lets you add model routing and failover in module 10.
 
 ## Code map
 | File | Concept |
@@ -63,7 +75,7 @@ pip install -e ".[sdk]" && m01-agent --provider openai ask "Is checkout-api heal
 | `resilience.py` | timeout, retry with full jitter, deadline, circuit breaker, TTL cache |
 | `memory.py` | bounded session memory + facts |
 | `agent.py` | the loop, budgets, duplicate guard, repair, grounding, fail-closed fallbacks |
-| `llm/mock.py`, `llm/openai_llm.py` | deterministic offline model; OpenAI Chat Completions client |
+| `llm/mock.py`, `llm/anthropic_llm.py`, `llm/openai_llm.py` | deterministic offline model; Claude Messages API client; OpenAI client |
 | `sdk_agent.py` | same agent on the OpenAI Agents SDK |
 | `telemetry.py`, `cli.py bench` | spans, p50/p95/p99, throughput |
 
@@ -71,7 +83,7 @@ pip install -e ".[sdk]" && m01-agent --provider openai ask "Is checkout-api heal
 1. Add a third tool `get_recent_deploys(service)` and make the agent mention a deploy that correlates with the regression.
 2. Make `checkout-api` flaky (`--failure-rate 0.5`) and tune retries vs breaker so p99 stays under 300 ms in `bench`.
 3. Add a semantic rule: if `severity` is `ok` but the tool reported an SLO breach, reject the output and trigger repair.
-4. Run the same 10 questions with `--provider openai` at temperature 0 twice. Diff the answers. What is stable and what isn't?
+4. Run the same 10 questions with `--provider anthropic` twice. Diff the answers. What is stable and what isn't?
 5. Replace `ConversationMemory` with a Redis-backed implementation (preview of module 9).
 
 ## Done when

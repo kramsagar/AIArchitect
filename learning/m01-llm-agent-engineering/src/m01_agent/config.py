@@ -5,14 +5,17 @@ from __future__ import annotations
 import os
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+DEFAULT_MODELS = {"anthropic": "claude-sonnet-4-5", "openai": "gpt-4o-mini", "mock": "mock-sre-v1"}
 
 
 class AgentConfig(BaseModel):
-    provider: Literal["mock", "openai"] = "mock"
-    model: str = "gpt-4o-mini"
-    base_url: str | None = None  # any OpenAI-compatible endpoint (Azure proxy, vLLM, Ollama, LiteLLM)
+    provider: Literal["mock", "anthropic", "openai"] = "mock"
+    model: str = ""  # empty -> DEFAULT_MODELS[provider]
+    base_url: str | None = None  # custom endpoint (gateway/proxy, or vLLM/Ollama for the openai provider)
     temperature: float = Field(default=0.0, ge=0, le=2)
+    max_output_tokens: int = 1024
     developer_role: Literal["developer", "system"] = "developer"  # use "system" for servers without it
 
     # Loop guards
@@ -37,12 +40,18 @@ class AgentConfig(BaseModel):
     memory_max_turns: int = 6
     memory_max_tokens: int = 1500
 
+    @model_validator(mode="after")
+    def _default_model(self) -> AgentConfig:
+        if not self.model:
+            self.model = DEFAULT_MODELS[self.provider]
+        return self
+
     @classmethod
     def from_env(cls, **overrides: Any) -> AgentConfig:
         env = {
             "provider": os.getenv("AGENT_PROVIDER"),
             "model": os.getenv("AGENT_MODEL"),
-            "base_url": os.getenv("OPENAI_BASE_URL"),
+            "base_url": os.getenv("AGENT_BASE_URL"),
             "developer_role": os.getenv("AGENT_DEVELOPER_ROLE"),
             "max_steps": os.getenv("AGENT_MAX_STEPS"),
             "run_timeout_s": os.getenv("AGENT_RUN_TIMEOUT_S"),

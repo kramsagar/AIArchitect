@@ -11,11 +11,12 @@ requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
   "pydantic>=2.5",
+  "anthropic>=0.75",
   "openai>=1.40",
 ]
 
 [project.optional-dependencies]
-sdk = ["openai-agents>=0.2"]
+sdk = ["openai-agents[litellm]>=0.4"]
 tokens = ["tiktoken>=0.7"]
 dev = ["pytest>=8", "ruff>=0.5"]
 

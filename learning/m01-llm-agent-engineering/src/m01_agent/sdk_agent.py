@@ -2,7 +2,7 @@
 
 The SDK gives you the loop (Runner), tool schemas from type hints (@function_tool), structured output
 (output_type), max_turns, tracing and sessions. You still own: tool safety, timeouts, retries, budgets and
-grounding. Requires `pip install -e ".[sdk]"` and OPENAI_API_KEY."""
+grounding. Requires `pip install -e ".[sdk]"` and ANTHROPIC_API_KEY (Claude via LiteLLM) or OPENAI_API_KEY."""
 
 from __future__ import annotations
 
@@ -60,9 +60,20 @@ def build_sdk_agent(config: AgentConfig | None = None):
         instructions=SYSTEM_PROMPT + "\n\n" + DEVELOPER_PROMPT,
         tools=[get_service_health, capacity_calculator],
         output_type=AssistantResponse,
-        model=config.model,
+        model=_sdk_model(config),
         model_settings=ModelSettings(temperature=config.temperature),
     )
+
+
+def _sdk_model(config: AgentConfig):
+    """OpenAI models run natively; Claude runs through the SDK's LiteLLM adapter (pip install -e '.[sdk]')."""
+    if config.provider != "anthropic":
+        return config.model
+    from agents import set_tracing_disabled
+    from agents.extensions.models.litellm_model import LitellmModel
+
+    set_tracing_disabled(True)  # SDK traces export to the OpenAI platform; module 7 sends them to our own OTel stack
+    return LitellmModel(model=f"anthropic/{config.model}")
 
 
 def run_sdk(question: str, config: AgentConfig | None = None) -> AssistantResponse:

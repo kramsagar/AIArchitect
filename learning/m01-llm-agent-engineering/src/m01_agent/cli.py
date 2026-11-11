@@ -129,8 +129,10 @@ def cmd_schemas(args: argparse.Namespace, config: AgentConfig) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="m01-agent", description="SRE Copilot - single agent with two tools")
-    parser.add_argument("--provider", choices=["mock", "openai"], help="LLM backend (default: env or mock)")
-    parser.add_argument("--model", help="model name for the openai provider")
+    parser.add_argument(
+        "--provider", choices=["mock", "anthropic", "openai"], help="LLM backend (default: env or mock)"
+    )
+    parser.add_argument("--model", help="model name (default: claude-sonnet-4-5 / gpt-4o-mini)")
     parser.add_argument("-v", "--verbose", action="store_true", help="emit structured JSON span logs to stderr")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
